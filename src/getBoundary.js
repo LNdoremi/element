@@ -31,7 +31,7 @@ export default function (map, districtName, callback) {
       })
     }
     // 点击事件
-    ply.addEventListener('click', () => { callback(labelText) })
+    ply.addEventListener('click', () => { callback(labelText, pointArray) })
   })
 }
 

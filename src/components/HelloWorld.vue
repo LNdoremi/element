@@ -18,9 +18,10 @@
       </div>
     </header>
     <div class="center">
+      <div class="mask-bottom"></div>
       <div class="center-left" id="allmap"></div>
       <div class="fill-1">
-        <img src="../assets/fill-1.png" class="fill-1-img">
+        <img src="../assets/fill-3.png" class="fill-1-img">
         <span class="current-district">{{currentDistrict}}</span>
       </div>
       <div class="fill-2"><p>商家数据：29046家<br>菜品数据：3000000+道菜</p></div>
@@ -46,13 +47,13 @@
             <div v-show="showPie === 0">
               <div id="shopCategoryPie" class="chart-pie"></div>
               <div class="menu-table">
-                <div class="menu-item" v-for="(item, index) in shopCategory" :key="index" v-if="index < 12"><span style="font-size: 18px">{{item.class.substr(0, 4)}}</span>  {{item.percentage}}%</div>
+                <div @click="updateShopNamePie(item.name)" class="menu-item pointer" v-for="(item, index) in menuShopCategory" :key="index" v-if="index < 12"><span style="font-size: 18px">{{item.name.substr(0, 4)}}</span>  {{item.value}}%</div>
               </div>
             </div>
             <div v-show="showPie === 1">
               <div id="shopNamePie" class="chart-pie"></div>
               <div class="menu-table">
-                <div class="menu-item" v-for="(item, index) in shopName" :key="index" v-if="index < 12"><span style="font-size: 18px">{{item.shopname.substr(0, 4)}}</span>  {{item.percentage}}%</div>
+                <div @click="updateDishPie(item.name)" class="menu-item pointer" v-for="(item, index) in menuShopName" :key="index" v-if="index < 12"><span style="font-size: 18px">{{item.name.substr(0, 4)}}</span>  {{item.value}}%</div>
               </div>
             </div>
             <div v-show="showPie === 2">
@@ -78,7 +79,7 @@
           <div class="left">
             <div class="y">销量</div>
             <div class="fl">
-              <div class="chart-line">
+              <div class="chart-line" @mouseover="showScore" @mouseout="hideScore">
                 <div class="title"></div>
                 <div id="scoreChart"></div>
               </div>
@@ -95,12 +96,15 @@
                 <span>-</span>
                 <span>5分</span>
               </div>
+              <div class="score-tips" v-if="isShowScore">
+                {{currentDistrict}}{{number.shopNumber}}家店铺评分汇总
+              </div>
             </div>
           </div>
           <div class="right">
             <div class="y">销量</div>
             <div class="fl">
-              <div class="chart-line">
+              <div class="chart-line" @mouseover="showDelivery" @mouseout="hideDelivery">
                 <div class="title-2"></div>
                 <div id="deliveryChart"></div>
               </div>
@@ -117,6 +121,9 @@
                 <span>-</span>
                 <span>75min</span>
               </div>
+              <div class="score-tips" v-if="isShowDelivery">
+                {{currentDistrict}}{{number.shopNumber}}铺配送时间汇总
+              </div>
             </div>
           </div>
         </div>
@@ -127,14 +134,17 @@
 <script>
 import myMapStyle from '../myMapStyle'
 import getBoundary from '../getBoundary'
+import getPoint from '../getPoint'
 import pieOptions from '../pieOptions'
 import lineOptions from '../lineOptions'
-import data from '../../static/data5.json'
+import data from '../../static/data7.json'
+import boundarys from '../boundarys'
+import points from '../points'
 export default {
   name: 'HelloWorld',
   data () {
     return {
-      currentDistrict: '',
+      currentDistrict: '广州市',
       currentShopCategory: '',
       currentPage: 1,
       totalPage: 3,
@@ -160,28 +170,27 @@ export default {
       initData: {},
       initPie: null,
       initPieOptions: {},
-      showPie: 3
+      showPie: 3,
+      map: null,
+      menuShopCategory: {},
+      menuShopName: {},
+      isShowScore: false,
+      isShowDelivery: false
     }
   },
   mounted () {
     // 初始化地图
     var map = new window.BMap.Map('allmap')
     map.centerAndZoom(new window.BMap.Point(113.500, 23.192), 10)
-    map.enableScrollWheelZoom()
-    map.enableContinuousZoom()
     map.setMapStyle({ styleJson: myMapStyle })
+    map.disableDragging()
     setTimeout(() => {
-      getBoundary(map, '广州市海珠区', (res) => { this.chooseDistrict(res) })
-      getBoundary(map, '广州市天河区', (res) => { this.chooseDistrict(res) })
-      getBoundary(map, '广州市黄埔区', (res) => { this.chooseDistrict(res) })
-      getBoundary(map, '广州市越秀区', (res) => { this.chooseDistrict(res) })
-      getBoundary(map, '广州市荔湾区', (res) => { this.chooseDistrict(res) })
-      getBoundary(map, '广州市增城市', (res) => { this.chooseDistrict(res) })
-      getBoundary(map, '广州市从化区', (res) => { this.chooseDistrict(res) })
-      getBoundary(map, '广州市白云区', (res) => { this.chooseDistrict(res) })
-      getBoundary(map, '广州市南沙区', (res) => { this.chooseDistrict(res) })
-      getBoundary(map, '广州市番禺区', (res) => { this.chooseDistrict(res) })
-      getBoundary(map, '广州市花都区', (res) => { this.chooseDistrict(res) })
+      boundarys.forEach((item) => {
+        getBoundary(map, item, (res, pointArray) => { this.chooseDistrict(res, pointArray) })
+      })
+      points.forEach((item) => {
+        getPoint(map, item, (res) => { this.chooseDistrict(res.name) })
+      })
     }, 200)
     // 店铺评分表
     this.scoreChart = this.echarts.init(document.getElementById('scoreChart'))
@@ -206,16 +215,32 @@ export default {
     this.updateDeliveryTime(data)
     this.updateNumber(data)
     this.updateInitPie(data)
-    console.log(data)
+
+    this.map = map
   },
   created () {
     this.data = data.region
   },
   methods: {
+    showScore () {
+      this.isShowScore = true
+    },
+    hideScore () {
+      this.isShowScore = false
+    },
+    showDelivery () {
+      this.isShowDelivery = true
+    },
+    hideDelivery () {
+      this.isShowDelivery = false
+    },
     openData () {
       console.log('hjhh')
     },
-    chooseDistrict (districtId) {
+    chooseDistrict (districtId, pointArray) {
+      this.map.enableScrollWheelZoom()
+      this.map.enableContinuousZoom()
+      this.map.setViewport(pointArray)
       this.currentDistrict = districtId
       this.showPie = 0
       this.currentShopCategory = ''
@@ -319,15 +344,16 @@ export default {
         data.push(dataItem)
       })
       data = data.slice(0, 12)
+      this.menuShopCategory = data
       this.shopCategoryPieOptions = pieOptions(data)
       this.shopCategoryPie.setOption(this.shopCategoryPieOptions)
       this.shopCategoryPie.on('click', (params) => {
-        this.showPie = 1
-        this.currentShopCategory = params.data.name
         this.updateShopNamePie(params)
       })
     },
     updateShopNamePie (params) {
+      this.showPie = 1
+      this.currentShopCategory = params.data.name
       this.shopCategory.forEach((item) => {
         if (item.class === params.data.name) {
           this.shopName = item.shops
@@ -347,16 +373,15 @@ export default {
         data.push(dataItem)
       })
       data = data.slice(0, 12)
+      this.menuShopName = data
       this.shopNamePieOptions = pieOptions(data)
       this.shopNamePie.setOption(this.shopNamePieOptions)
       this.shopNamePie.on('click', (params) => {
-        this.showPie = 2
         this.updateDishPie(params)
       })
     },
     updateDishPie (params) {
-      console.log('666666', params)
-      console.log('ddddd', this.shopName)
+      this.showPie = 2
       this.shopName.forEach((item) => {
         if (item.shopname === params.data.name) {
           this.dish = item.menus
@@ -375,7 +400,6 @@ export default {
         }
         data.push(dataItem)
       })
-      console.log('data', data)
       data = data.slice(0, 12)
       this.dishPieOptions = pieOptions(data)
       this.dishPie.setOption(this.dishPieOptions)
@@ -459,7 +483,7 @@ export default {
     height: 880px;
     .center-left{
       width: 880px;
-      height: 880px;
+      height: 945px;
       margin-right: 46px;
       float: left;
     }
@@ -485,15 +509,27 @@ export default {
         top: -32px;
       }
     }
+    .mask-bottom {
+      position: absolute;
+      background: rgb(12, 23, 28);
+      z-index: 9;
+      top: 992px;
+      left: 78px;
+      width: 880px;
+      height: 85px;
+    }
     .fill-2{
       background: url("../assets/fill-2.png");
       background-size: cover;
       width: 200px;
       height: 65px;
       position: absolute;
+      z-index: 10;
       top: 927px;
-      left: 818px;
+      left: 758px;
       p {
+        position: relative;
+        top: 10px;
         color:white;
         line-height: 25px;
         font-size:14px;
@@ -547,7 +583,7 @@ export default {
           height: 584px;
           background-color: #0A2129;
           .fill-3{
-            background: url("../assets/fill-1.png");
+            background: url("../assets/fill-3.png");
             background-size: cover;
             width: 118px;
             height: 29px;
@@ -600,6 +636,9 @@ export default {
     padding-left: 12px;
     overflow:hidden;
     text-overflow:ellipsis;
+  }
+  .pointer{
+    cursor: pointer;
   }
 }
 .y{
@@ -672,5 +711,14 @@ export default {
   // position: absolute;
   // top: 52px;
   // background-color: blue;
+}
+.score-tips {
+  width: 260px;
+  height: 40px;
+  line-height: 40px;
+  margin-top: 20px;
+  margin-left: 50px;
+  background: rgb(68, 68, 68);
+  border-radius: 20px;
 }
 </style>
